@@ -33,6 +33,7 @@ jobs:
             echo "No source-repo updates"
           else
             git commit -m "chore: update GDELT archive and latest risks"
+            git pull --rebase
             git push
           fi
 
