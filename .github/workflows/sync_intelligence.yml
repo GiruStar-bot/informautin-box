@@ -1,0 +1,57 @@
+name: Sync Intelligence Data
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Fetch and process GDELT intelligence
+        run: python fetch_and_process_gdelt.py
+
+      - name: Commit archive updates to source repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/archive latest_risks.json
+          if git diff --cached --quiet; then
+            echo "No source-repo updates"
+          else
+            git commit -m "chore: update GDELT archive and latest risks"
+            git push
+          fi
+
+      - name: Prepare delivery payload
+        run: |
+          mkdir -p delivery
+          cp latest_risks.json delivery/latest_risks.json
+
+      - name: Push latest_risks.json to target repo
+        uses: cpina/github-action-push-to-another-repository@main
+        env:
+          # NOTE: Set API_TOKEN_GITHUB secret (PAT with repo write access) in this source repository.
+          API_TOKEN_GITHUB: ${{ secrets.API_TOKEN_GITHUB }}
+        with:
+          source-directory: delivery
+          destination-github-username: girustar-bot
+          destination-repository-name: worlddashboard_2
+          user-email: github-actions[bot]@users.noreply.github.com
+          user-name: github-actions[bot]
+          target-branch: main
+          target-directory: public/data
+          commit-message: "chore: sync latest intelligence risks"
