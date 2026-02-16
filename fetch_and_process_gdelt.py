@@ -272,7 +272,10 @@ def download_latest_rows() -> list[list[str]]:
         try:
             payload = fetch_bytes(export_url)
             with zipfile.ZipFile(BytesIO(payload)) as zf:
-                first_name = zf.namelist()[0]
+                names = zf.namelist()
+                if not names:
+                    raise RuntimeError("GDELT ZIP archive is empty")
+                first_name = names[0]
                 with zf.open(first_name) as csv_file:
                     decoded = (line.decode("utf-8", errors="replace") for line in csv_file)
                     return [row for row in csv.reader(decoded, delimiter="\t") if row]
@@ -336,7 +339,7 @@ def to_float(value: str, default: float = 0.0) -> float:
 
 def distill_latest_risks() -> list[dict[str, object]]:
     aggregate: dict[str, dict[str, object]] = defaultdict(
-        lambda: {"conflict_score": 0.0, "event_count": 0, "sample_url": "", "max_mentions": -1.0}
+        lambda: {"conflict_score": 0.0, "event_count": 0, "sample_url": "", "max_mentions": 0.0}
     )
 
     for row in iter_recent_archive_rows(hours=24):
@@ -345,7 +348,9 @@ def distill_latest_risks() -> list[dict[str, object]]:
             continue
 
         goldstein = to_float(row.get("GoldsteinScale", "0"))
-        mentions = max(to_float(row.get("NumMentions", "1"), 1.0), 1.0)
+        mentions = to_float(row.get("NumMentions", "1"))
+        if mentions <= 0:
+            mentions = 1.0
         conflict_impact = max(0.0, -goldstein) * mentions
 
         country = aggregate[iso3]
@@ -371,7 +376,7 @@ def distill_latest_risks() -> list[dict[str, object]]:
 
 def export_risks_json() -> None:
     payload = {
-        "generated_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+        "generated_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "window_hours": 24,
         "risks": distill_latest_risks(),
     }

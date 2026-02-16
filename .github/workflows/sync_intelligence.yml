@@ -41,6 +41,13 @@ jobs:
           mkdir -p delivery
           cp latest_risks.json delivery/latest_risks.json
 
+      - name: Validate API token secret
+        run: |
+          if [ -z "${{ secrets.API_TOKEN_GITHUB }}" ]; then
+            echo "API_TOKEN_GITHUB secret is required for cross-repository delivery."
+            exit 1
+          fi
+
       - name: Push latest_risks.json to target repo
         uses: cpina/github-action-push-to-another-repository@main
         env:
